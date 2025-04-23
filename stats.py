@@ -147,7 +147,7 @@ def calculate_solved(grouped_data):
         results[width_range] = {
             'graphs': group['graphs'],
             'max_width': -1,
-            'edges':  sum(group['edges'])/group['graphs'],
+            'edges':  -1,
             'max_edges': -1,
             'preprocess_seqs': -1,
             'solved_default': -1,
@@ -163,6 +163,7 @@ def calculate_solved(grouped_data):
 
         # Calculate averages for preprocessing times
         if group['graphs'] > 0:
+            results[width_range]['edges'] = sum(group['edges'])/group['graphs'],
             if len(group['preprocess sequences heur']) > 0:
                 results[width_range]['preprocess_seqs'] = (sum(group['preprocess sequences heur']) / len(group['preprocess sequences heur']))
             results[width_range]['max_edges'] = max(group['edges'])
@@ -234,7 +235,7 @@ def generate_table2(results):
 
         speedup_seqs          = f"{metrics['speedup_seqs']:.1f}" if metrics['speedup_seqs'] != -1 else "-"
 
-        edges_info            = (f"{int(metrics['edges'])}") + " (" + f"{metrics['max_edges']}" + ")"
+        edges_info            = ((f"{int(metrics['edges'])}") + " (" + f"{metrics['max_edges']}" + ")" ) if metrics['edges'] != -1 else "-"
 
         latex_code += f"& {width_range} & {metrics['graphs']} & {edges_info} & {preprocess_seqs} & {fixed_sequences} & {solved_default_time} & {solved_sequences_time} & {speedup_seqs} \\\\\n"
     
