@@ -235,7 +235,7 @@ def generate_table2(results):
 
         speedup_seqs          = f"{metrics['speedup_seqs']:.1f}" if metrics['speedup_seqs'] != -1 else "-"
 
-        edges_info            = ((f"{int(metrics['edges'])}") + " (" + f"{metrics['max_edges']}" + ")" ) if metrics['edges'] != -1 else "-"
+        edges_info            = (f"{metrics['edges']}") + " (" + f"{metrics['max_edges']}" + ")" if metrics['edges'] != -1 else "-"
 
         latex_code += f"& {width_range} & {metrics['graphs']} & {edges_info} & {preprocess_seqs} & {fixed_sequences} & {solved_default_time} & {solved_sequences_time} & {speedup_seqs} \\\\\n"
     
