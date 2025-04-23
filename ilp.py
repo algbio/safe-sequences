@@ -137,13 +137,16 @@ class Encode_LeastSquares:
         self.solve()
         logger.info("Gurobi solver status " + str(self.model.status))
         if self.model.status == GRB.TIME_LIMIT:
-                raise utils.GRB_TimeOut("ilp.LeastSquares.solve_once while finding feasible solution")
+            raise utils.GRB_TimeOut("ilp.LeastSquares.solve_once while finding feasible solution")
+        elif self.model.status == GRB.INFEASIBLE:
+            raise utils.GRB_Infeasible("ilp.LeastSquares.solve_once while finding feasible solution")
         elif self.model.status == GRB.OPTIMAL:
             _,_,p = self.build_solution()
             weights,paths = list(map(lambda x : x[0], p)), list(map(lambda x : x[1], p))
-            return (paths,weights)
+            #return (paths,weights)
+            return self.model.ObjVal
         else:
-            logger.error("FATAL: solver finished with status " + str(self.model.status) + ", which is not OPT nor TIME_LIMIT.")
+            logger.error("FATAL: solver finished with status " + str(self.model.status) + ", which is not: OPT, TIME_LIMIT, INFEASIBLE.")
 
     def optimize_linear(self):
         #Assumption: the initial value of self.k is sufficiently high so that the ILP solver starts with a feasible solution
@@ -152,7 +155,10 @@ class Encode_LeastSquares:
         self.solve()
         if self.model.status == GRB.TIME_LIMIT:
             self.final_k = self.k
-            raise utils.GRB_TimeOut("ilp.LeastSquares.optimize_linear while optimizing")
+            raise utils.GRB_TimeOut("ilp.LeastSquares.optimize_linear in the feasibility stage of the optimization loop")
+        elif self.model.status == GRB.INFEASIBLE:
+            self.final_k = self.k
+            raise utils.GRB_Infeasible("ilp.LeastSquares.optimize_linear in the feasibility stage of the optimization loop")
         prev_obj = self.model.ObjVal
 
         if prev_obj == 0:
@@ -173,7 +179,11 @@ class Encode_LeastSquares:
             if self.model.status == GRB.TIME_LIMIT:
                 self.final_k = self.k - 1
                 raise utils.GRB_TimeOut("ilp.LeastSquares.optimize_linear while optimizing")
-        
+            elif self.model.status == GRB.INFEASIBLE:
+                self.final_k = self.k - 1
+                raise utils.GRB_Infeasible("ilp.LeastSquares.optimize_linear while optimizing")
+            #assert(self.model.ObjVal <= prev_obj) not necessarily true, as the lower bound of the weight variables is 1
+
             if self.model.ObjVal >= prev_obj: #if we do not improve by allowing more paths we stop
                 self.final_k = self.k-1
                 break
@@ -216,7 +226,7 @@ class Encode_Robust:
         self.weights    = {}
         self.slacks     = {}
         self.spc_vars   = {}
-        
+
         self.timeout    = timeout
         self.threads    = threads
 
@@ -336,13 +346,16 @@ class Encode_Robust:
         self.solve()
         logger.info("Gurobi solver status " + str(self.model.status))
         if self.model.status == GRB.TIME_LIMIT:
-                raise utils.GRB_TimeOut("ilp.Robust.solve_once while finding feasible solution")
+            raise utils.GRB_TimeOut("ilp.Robust.solve_once while finding feasible solution")
+        elif self.model.status == GRB.INFEASIBLE:
+            raise utils.GRB_Infeasible("ilp.Robust.solve_once while finding feasible solution")
         elif self.model.status == GRB.OPTIMAL:
             _,_,p = self.build_solution()
-            weights,paths = list(map(lambda x : x[0], p)), list(map(lambda x : x[2], p))
-            return (paths,weights)
+            weights,paths,slacks = list(map(lambda x : x[0], p)), list(map(lambda x : x[2], p)), list(map(lambda x : x[1], p))
+            return (paths,weights,slacks,self.model.ObjVal)
+            #return self.model.ObjVal
         else:
-            logger.error("FATAL: solver finished with status " + str(self.model.status) + ", which is not OPT nor TIME_LIMIT.")
+            logger.error("FATAL: solver finished with status " + str(self.model.status) + ", which is not: OPT, TIME_LIMIT, INFEASIBLE.")
 
     def optimize_linear(self):
         #Assumption: the initial value of self.k is sufficiently high so that the ILP solver starts with a feasible solution
@@ -351,7 +364,10 @@ class Encode_Robust:
         self.solve()
         if self.model.status == GRB.TIME_LIMIT:
             self.final_k = self.k
-            raise utils.GRB_TimeOut("ilp.Robust.optimize_linear while optimizing")
+            raise utils.GRB_TimeOut("ilp.Robust.optimize_linear in the feasibility stage of the optimization loop")
+        elif self.model.status == GRB.INFEASIBLE:
+            self.final_k = self.k
+            raise utils.GRB_Infeasible("ilp.Robust.optimize_linear in th feasibility stage of the optimization loop")
         previous_slack = self.model.ObjVal
 
         if previous_slack == 0:
@@ -372,6 +388,10 @@ class Encode_Robust:
             if self.model.status == GRB.TIME_LIMIT:
                 self.final_k = self.k-1
                 raise utils.GRB_TimeOut("ilp.Robust.optimize_linear while optimizing")
+            elif self.model.status == GRB.INFEASIBLE:
+                self.final_k = self.k-1
+                raise utils.GRB_Infeasible("ilp.Robust.optimize_linear while optimizing")
+            #assert(self.model.ObjVal <= previous_slack) not necessarily true, as the lower bound of the weight variables is 1
 
             if self.model.ObjVal >= previous_slack: #if we do not improve by allowing more paths we stop
                 self.final_k = self.k-1
@@ -400,16 +420,18 @@ def robust(G : graph.st_DAG, epsilon=0.25, timeout=300, threads=4, path_constrai
 
     if len(G.edge_list)==0:
         logger.warning("Empty edge list in graph %s. Returning empty list of paths.", G.id)
-        return []
+        #return []
+        return -1
     
     encoder = Encode_Robust(G.n, G.edge_list, G.source, G.sink, G.flow, G.w, path_constraints, vars_to_fix, epsilon, timeout, threads)
 
     if optimize:
-        return encoder.optimize_linear()
+        _,_,_,x = encoder.optimize_linear() #return (paths,weights,slacks,self.model.ObjVal)
+        return x
     else:
-        status,paths = encoder.solve_once()
-        return (status,paths)
-    
+        return encoder.solve_once()
+        #return (paths,weights)
+        #return x
 
 def leastsquares(G : graph.st_DAG, epsilon=0.25, timeout=300, threads=4, path_constraints=[], vars_to_fix=[], optimize=False):
 
@@ -417,12 +439,13 @@ def leastsquares(G : graph.st_DAG, epsilon=0.25, timeout=300, threads=4, path_co
 
     if len(G.edge_list)==0:
         logger.warning("Empty edge list in graph %s. Returning empty list of paths.", G.id)
-        return []
-
+        #return []
+        return -1
+    
     encoder = Encode_LeastSquares(G.n, G.edge_list, G.source, G.sink, G.flow, G.w, path_constraints, vars_to_fix, epsilon, timeout, threads)
 
     if optimize:
         return encoder.optimize_linear()
     else:
-        status,paths = encoder.solve_once()
-        return (status,paths)
+        return encoder.solve_once()
+        #return (paths,weights)
