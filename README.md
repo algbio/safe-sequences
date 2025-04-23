@@ -1,7 +1,5 @@
 # Safe-sequences
 
-**04/11/2024**
-
 ## About safe sequences
 
 The driving motivation for this project is to extend the well known notion of safe paths to safe sequences and provide implementations to efficiently compute safe sequences via dominators. [Safety](https://link.springer.com/chapter/10.1007/978-3-319-31957-5_11) has found applications to numerous bioinformatic problems, namely the genome-guided RNA transcript assembly problem, where this current implementation focuses on. More specifically, given a set of RNA-seq reads, a directed acyclic graph (DAG) is constructed from their alignments to a reference genome. The graph nodes correspond to e.g exons, the arcs correspond to reads overlapping two consecutive exons, and the node or arc weights corresponding their read coverage. The RNA transcripts then correspond to a set of source-to-sink weighted paths in the DAG that best explain the nodes, arcs and their weights, under various definitions of optimality. For example, under the assumption of perfect data, the weights on the arcs of the graph induce a flow, and thus the Minimum Flow Decomposition problem (MFD) becomes a natural and suitable abstraction.
